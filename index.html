@@ -1,179 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tailwind CRUD App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <title>Notes App</title>
 </head>
+<body>
 
-<body class="bg-gray-100 min-h-screen">
+<h1>Notes App</h1>
 
-  <div class="max-w-5xl mx-auto py-10">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800 text-center">CRUD App – Lambda + DynamoDB</h1>
+<input id="noteInput" placeholder="Enter note">
+<button onclick="createNote()">Add</button>
 
-    <!-- Add Item Button -->
-    <div class="flex justify-end mb-4">
-      <button onclick="openAddModal()"
-        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-        + Add Item
-      </button>
-    </div>
+<ul id="notesList"></ul>
 
-    <!-- Items Table -->
-    <div class="bg-white shadow rounded-lg p-6">
-      <table class="w-full text-left">
-        <thead>
-          <tr class="border-b">
-            <th class="py-2 font-semibold text-gray-600">ID</th>
-            <th class="py-2 font-semibold text-gray-600">Name</th>
-            <th class="py-2 font-semibold text-gray-600">Price</th>
-            <th class="py-2 font-semibold text-gray-600 text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="itemsTable"></tbody>
-      </table>
-    </div>
-  </div>
+<script>
+const API_URL = "https://bqoo0ey1td.execute-api.ap-southeast-1.amazonaws.com/deploynotesapi/notes";
 
-  <!-- Modal -->
-  <div id="modalBg" class="fixed inset-0 bg-black bg-opacity-40 hidden flex items-center justify-center">
-    <div class="bg-white w-96 p-6 rounded-lg shadow-xl">
-      <h2 id="modalTitle" class="text-xl font-bold mb-4"></h2>
+async function fetchNotes() {
+    const res = await fetch(API_URL);
+    const data = await res.json();
 
-      <input id="itemId" placeholder="ID"
-        class="w-full mb-3 px-3 py-2 border rounded-md focus:ring focus:outline-none" />
+    console.log("FULL RESPONSE:", data);
 
-      <input id="itemName" placeholder="Name"
-        class="w-full mb-3 px-3 py-2 border rounded-md focus:ring focus:outline-none" />
+    const list = document.getElementById("notesList");
+    list.innerHTML = "";
 
-      <input id="itemPrice" placeholder="Price"
-        class="w-full mb-3 px-3 py-2 border rounded-md focus:ring focus:outline-none" />
+    data.forEach(note => {   // ✅ use data directly
+        const li = document.createElement("li");
+        li.innerHTML = `
+            ${note.content}
+            <button onclick="deleteNote('${note.id}')">Delete</button>
+        `;
+        list.appendChild(li);
+    });
+}
 
-      <div class="flex justify-end gap-2 mt-4">
-        <button onclick="closeModal()" class="px-4 py-2 border rounded-lg">Cancel</button>
-        <button id="modalActionBtn"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"></button>
-      </div>
-    </div>
-  </div>
+async function createNote() {
+    const content = document.getElementById("noteInput").value;
 
-  <script>
-    const API = "https://x0f9v8cst6.execute-api.ap-southeast-1.amazonaws.com/$default";
-
-    /* ================================
-       LOAD ITEMS
-    ==================================*/
-    document.addEventListener("DOMContentLoaded", loadItems);
-
-    async function loadItems() {
-      const res = await fetch(`${API}/items`);
-      const data = await res.json();
-
-      const items = data.items || [];   // <-- fixed to match Lambda output
-
-      const table = document.getElementById("itemsTable");
-      table.innerHTML = "";
-
-      items.forEach(item => {
-        table.innerHTML += `
-          <tr class="border-b">
-            <td class="py-2">${item.id}</td>
-            <td class="py-2">${item.name}</td>
-            <td class="py-2">${item.price}</td>
-            <td class="py-2 text-right">
-              <button onclick="editItem('${item.id}', '${item.name}', '${item.price}')"
-                class="text-blue-600 hover:underline mr-3">Edit</button>
-              
-              <button onclick="deleteItem('${item.id}')"
-                class="text-red-600 hover:underline">Delete</button>
-            </td>
-          </tr>`;
-      });
-    }
-
-    /* ================================
-       MODAL HANDLING
-    ==================================*/
-
-    function openAddModal() {
-      document.getElementById("modalTitle").innerText = "Add Item";
-      document.getElementById("modalActionBtn").innerText = "Save";
-      document.getElementById("modalActionBtn").onclick = saveItem;
-
-      document.getElementById("itemId").value = "";
-      document.getElementById("itemName").value = "";
-      document.getElementById("itemPrice").value = "";
-
-      document.getElementById("modalBg").classList.remove("hidden");
-    }
-
-    function editItem(id, name, price) {
-      document.getElementById("modalTitle").innerText = "Edit Item";
-      document.getElementById("modalActionBtn").innerText = "Update";
-      document.getElementById("modalActionBtn").onclick = updateItem;
-
-      document.getElementById("itemId").value = id;
-      document.getElementById("itemName").value = name;
-      document.getElementById("itemPrice").value = price;
-
-      document.getElementById("modalBg").classList.remove("hidden");
-    }
-
-    function closeModal() {
-      document.getElementById("modalBg").classList.add("hidden");
-    }
-
-    /* ================================
-       CRUD
-    ==================================*/
-
-    async function saveItem() {
-      const item = readForm();
-
-      await fetch(`${API}/items`, {
+    await fetch(API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item)
-      });
+        body: JSON.stringify({ content })
+    });
 
-      closeModal();
-      loadItems();
-    }
+    fetchNotes();
+}
 
-    async function updateItem() {
-      const item = readForm();
+async function deleteNote(id) {
+    await fetch(API_URL, {
+        method: "DELETE",
+        body: JSON.stringify({ id })
+    });
 
-      await fetch(`${API}/items/${item.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(item)
-      });
+    fetchNotes();
+}
 
-      closeModal();   // <-- FIXED (you forgot this)
-      loadItems();
-    }
-
-    async function deleteItem(id) {
-      if (!confirm("Delete this item?")) return;
-
-      await fetch(`${API}/items/${id}`, {
-        method: "DELETE"
-      });
-
-      loadItems();
-    }
-
-    function readForm() {
-      return {
-        id: document.getElementById("itemId").value,
-        name: document.getElementById("itemName").value,
-        price: document.getElementById("itemPrice").value
-      };
-    }
-  </script>
+fetchNotes();
+</script>
 
 </body>
 </html>
-
