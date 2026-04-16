@@ -1,0 +1,55 @@
+import json
+import boto3
+import uuid
+
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('NotesTable')
+
+def lambda_handler(event, context):
+    method = event['httpMethod'] 
+
+    if method == 'POST':
+        body = json.loads(event['body'])
+        note_id = str(uuid.uuid4())
+
+        table.put_item(Item={
+            'id': note_id,
+            'content': body['content']
+        })
+
+        return response(200, {'message': 'Note created', 'id': note_id})
+
+    elif method == 'GET':
+        result = table.scan()
+        return response(200, result['Items'])
+
+    elif method == 'PUT':
+        body = json.loads(event['body'])
+
+        table.update_item(
+            Key={'id': body['id']},
+            UpdateExpression='SET content = :c',
+            ExpressionAttributeValues={':c': body['content']}
+        )
+
+        return response(200, {'message': 'Note updated'})
+
+    elif method == 'DELETE':
+        body = json.loads(event['body'])
+
+        table.delete_item(Key={'id': body['id']})
+
+        return response(200, {'message': 'Note deleted'})
+
+    return response(400, {'message': 'Invalid request'})
+
+
+def response(status, body):
+    return {
+        'statusCode': status,
+        'headers': {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+        },
+        'body': json.dumps(body)
+    }
