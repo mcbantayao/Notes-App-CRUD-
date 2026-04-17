@@ -1,47 +1,58 @@
 import json
 import boto3
 import uuid
+from datetime import datetime  # ✅ added
 
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('NotesTable')
 
 def lambda_handler(event, context):
-    method = event['httpMethod'] 
+    method = event['httpMethod']
 
-    if method == 'POST':
-        body = json.loads(event['body'])
-        note_id = str(uuid.uuid4())
-
-        table.put_item(Item={
-            'id': note_id,
-            'content': body['content']
-        })
-
-        return response(200, {'message': 'Note created', 'id': note_id})
-
-    elif method == 'GET':
-        result = table.scan()
-        return response(200, result['Items'])
-
-    elif method == 'PUT':
+    # ✅ safe body parsing (prevents errors on GET)
+    body = {}
+    if event.get('body'):
         body = json.loads(event['body'])
 
-        table.update_item(
-            Key={'id': body['id']},
-            UpdateExpression='SET content = :c',
-            ExpressionAttributeValues={':c': body['content']}
-        )
+    try:
+        if method == 'POST':
+            note_id = str(uuid.uuid4())
+            now = datetime.utcnow().isoformat()  # ✅ timestamp
 
-        return response(200, {'message': 'Note updated'})
+            table.put_item(Item={
+                'id': note_id,
+                'content': body.get('content', ''),
+                'createdAt': now,   # ✅ added
+                'updatedAt': now    # ✅ added
+            })
 
-    elif method == 'DELETE':
-        body = json.loads(event['body'])
+            return response(200, {'message': 'Note created', 'id': note_id})
 
-        table.delete_item(Key={'id': body['id']})
+        elif method == 'GET':
+            result = table.scan()
+            return response(200, result.get('Items', []))  # ✅ safer
 
-        return response(200, {'message': 'Note deleted'})
+        elif method == 'PUT':
+            table.update_item(
+                Key={'id': body['id']},
+                UpdateExpression='SET content = :c, updatedAt = :u',  # ✅ updated
+                ExpressionAttributeValues={
+                    ':c': body['content'],
+                    ':u': datetime.utcnow().isoformat()  # ✅ timestamp update
+                }
+            )
 
-    return response(400, {'message': 'Invalid request'})
+            return response(200, {'message': 'Note updated'})
+
+        elif method == 'DELETE':
+            table.delete_item(Key={'id': body['id']})
+            return response(200, {'message': 'Note deleted'})
+
+        return response(400, {'message': 'Invalid request'})
+
+    except Exception as e:
+        print("ERROR:", str(e))  # 🔥 helps debugging
+        return response(500, {'error': str(e)})
 
 
 def response(status, body):
